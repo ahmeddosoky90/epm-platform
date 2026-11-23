@@ -1,0 +1,28 @@
+# Local infrastructure for development and small single-node deployments.
+#   docker compose up -d db guacd      → database + RDP gateway, run the app with `npm run dev`
+#   docker compose up -d --build       → everything, app on http://localhost:3000
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: epm
+      POSTGRES_USER: epm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-epm-dev-only}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U epm"], interval: 5s, retries: 10 }
+  guacd:
+    image: guacamole/guacd:1.5.5
+    ports: ["127.0.0.1:4822:4822"]
+  app:
+    build: .
+    depends_on: { db: { condition: service_healthy } }
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://epm:${POSTGRES_PASSWORD:-epm-dev-only}@db:5432/epm?schema=public
+      GUACD_HOST: guacd
+      GUACD_PORT: "4822"
+      STORAGE_LOCAL_DIR: /data/storage
+    ports: ["3000:3000"]
+    volumes: [files:/data/storage]
+volumes: { pgdata: {}, files: {} }
