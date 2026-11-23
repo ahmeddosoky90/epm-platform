@@ -1,6 +1,7 @@
 "use client";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, Legend, ComposedChart } from "recharts";
 
+const compact = (v: number) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(v);
 const PALETTE = ["#0a84ff", "#34c759", "#ff9f0a", "#af52de", "#ff375f", "#5ac8fa", "#ffd60a", "#64d2ff", "#bf5af2", "#30d158"];
 const axis = { fontSize: 11, fill: "var(--ink-3)" };
 const tip = { contentStyle: { background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 10, fontSize: 12, color: "var(--ink-1)" } };
@@ -12,8 +13,8 @@ export function Bars({ data, x = "name", bars, height = 220, stacked, horizontal
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={{ left: horizontal ? 20 : -10, right: 10, top: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={!horizontal} horizontal={!!horizontal || true} />
-        {horizontal ? <><XAxis type="number" tick={axis} axisLine={false} tickLine={false} /><YAxis type="category" dataKey={x} tick={axis} width={110} axisLine={false} tickLine={false} /></>
-          : <><XAxis dataKey={x} tick={axis} axisLine={false} tickLine={false} interval={0} /><YAxis tick={axis} axisLine={false} tickLine={false} allowDecimals={false} /></>}
+        {horizontal ? <><XAxis type="number" tick={axis} axisLine={false} tickLine={false} tickFormatter={compact} /><YAxis type="category" dataKey={x} tick={axis} width={110} axisLine={false} tickLine={false} /></>
+          : <><XAxis dataKey={x} tick={axis} axisLine={false} tickLine={false} interval={0} /><YAxis tick={axis} axisLine={false} tickLine={false} allowDecimals={false} tickFormatter={compact} width={48} /></>}
         <Tooltip {...tip} cursor={{ fill: "rgba(127,127,127,.08)" }} />
         {bars.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
         {bars.map((b, i) => (
@@ -49,7 +50,7 @@ export function Lines({ data, x = "date", lines, height = 240, area }: { data: R
     <ResponsiveContainer width="100%" height={height}>
       <Chart data={data} margin={{ left: -10, right: 10, top: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
-        <XAxis dataKey={x} tick={axis} axisLine={false} tickLine={false} minTickGap={20} /><YAxis tick={axis} axisLine={false} tickLine={false} />
+        <XAxis dataKey={x} tick={axis} axisLine={false} tickLine={false} minTickGap={20} /><YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={compact} width={48} />
         <Tooltip {...tip} /><Legend wrapperStyle={{ fontSize: 11 }} />
         {lines.map((l, i) => area
           ? <Area key={l.key} type="monotone" dataKey={l.key} name={l.label ?? l.key} stackId="1" stroke={l.color ?? PALETTE[i]} fill={l.color ?? PALETTE[i]} fillOpacity={0.35} />
@@ -65,7 +66,7 @@ export function Combo({ data, x = "name", bars, lines, height = 240 }: { data: R
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={data} margin={{ left: -10, right: 10, top: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
-        <XAxis dataKey={x} tick={axis} axisLine={false} tickLine={false} /><YAxis tick={axis} axisLine={false} tickLine={false} />
+        <XAxis dataKey={x} tick={axis} axisLine={false} tickLine={false} /><YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={compact} width={48} />
         <Tooltip {...tip} /><Legend wrapperStyle={{ fontSize: 11 }} />
         {bars.map((b, i) => <Bar key={b.key} dataKey={b.key} name={b.label ?? b.key} fill={b.color ?? PALETTE[i]} radius={[6, 6, 0, 0]} maxBarSize={28} />)}
         {lines.map((l, i) => <Line key={l.key} type="monotone" dataKey={l.key} name={l.label ?? l.key} stroke={l.color ?? PALETTE[i + 3]} strokeWidth={2} />)}

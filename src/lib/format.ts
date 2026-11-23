@@ -1,7 +1,7 @@
 /** Locale/currency/timezone-aware formatting; never hard-code symbols or formats in components. */
 export function money(v: unknown, currency = "EGP", locale = "en", compact = false) {
   const n = typeof v === "number" ? v : Number(v?.toString() ?? 0);
-  return new Intl.NumberFormat(locale === "ar" ? "ar-EG" : "en-GB", { style: "currency", currency, maximumFractionDigits: compact ? 1 : 0, notation: compact ? "compact" : "standard" }).format(n);
+  return new Intl.NumberFormat(locale === "ar" ? "ar-EG" : "en-GB", { style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: compact ? 1 : 0, notation: compact ? "compact" : "standard" }).format(n);
 }
 export function num(v: unknown, digits = 0) { return new Intl.NumberFormat("en-GB", { maximumFractionDigits: digits }).format(Number(v?.toString() ?? 0)); }
 export function date(d: Date | string | null | undefined, tz = "Africa/Cairo", locale = "en") {

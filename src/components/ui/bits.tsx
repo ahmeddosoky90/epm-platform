@@ -27,7 +27,7 @@ export function Stat({ label, value, sub, tone }: { label: string; value: ReactN
   return (
     <div className="card p-4">
       <div className="text-xs muted mb-1">{label}</div>
-      <div className="text-2xl font-semibold tracking-tight" style={tone ? { color: tone } : undefined}>{value}</div>
+      <div className={`${typeof value === "string" && value.length > 9 ? "text-lg" : "text-2xl"} font-semibold tracking-tight break-words`} style={tone ? { color: tone } : undefined}>{value}</div>
       {sub && <div className="text-xs muted mt-1">{sub}</div>}
     </div>
   );
