@@ -66,6 +66,7 @@ async function checkRefs(tx: Tx, ws: string, d: { portfolioId?: string | null; p
 export async function createProject(ctx: Ctx, input: z.infer<typeof projectCreateSchema>) {
   requirePermission(ctx, "project:create");
   if (input.startDate && input.plannedEndDate && input.plannedEndDate < input.startDate) throw badRequest("Planned end date is before start date");
+  if ([input.approvedBudget, input.capexBudget, input.opexBudget].some((v) => v && !v.isZero())) requirePermission(ctx, "finance:edit");
   return prisma.$transaction(async (tx) => {
     await checkRefs(tx, ctx.workspaceId, input);
     let key = input.key;
