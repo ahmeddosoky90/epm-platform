@@ -51,10 +51,13 @@ export async function deleteConnection(ctx: Ctx, id: string) {
   await audit({ workspaceId: ctx.workspaceId, userId: ctx.user.id, eventType: "tech.connection_deleted", entityType: "TechConnection", entityId: id, before: { name: c.name, host: c.host, protocol: c.protocol }, ip: ctx.ip });
 }
 
-export async function terminalTicket(ctx: Ctx, id: string) {
+export const rdpEnabled = () => !!process.env.GUACD_HOST;
+
+export async function terminalTicket(ctx: Ctx, id: string, password?: string) {
   const c = await loadConnection(ctx, id);
-  if (c.protocol !== "SSH") throw badRequest("Terminal sessions are for SSH connections");
-  return { ticket: issueTicket({ userId: ctx.user.id, workspaceId: ctx.workspaceId, connectionId: c.id, ip: ctx.ip }) };
+  if (c.protocol === "SFTP") throw badRequest("SFTP connections have no interactive session");
+  if (c.protocol === "RDP" && !rdpEnabled()) throw badRequest("In-browser RDP needs the RDP gateway (guacd). Set GUACD_HOST, or use Download .rdp.");
+  return { ticket: issueTicket({ userId: ctx.user.id, workspaceId: ctx.workspaceId, connectionId: c.id, ip: ctx.ip, password: c.protocol === "RDP" ? password : undefined }) };
 }
 
 /** A standard .rdp file for the user's own Remote Desktop client. Passwords are never written into it. */

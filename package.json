@@ -29,6 +29,7 @@
     "clsx": "^2.1.1",
     "exceljs": "^4.4.0",
     "fast-xml-parser": "^5.12.1",
+    "guacamole-common-js": "^1.5.0",
     "imapflow": "^2.12.2",
     "lucide-react": "^1.78.0",
     "next": "^15.5.29",

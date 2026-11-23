@@ -4,8 +4,9 @@ import crypto from "crypto";
  * One-time, 30-second tickets that authorise a WebSocket terminal. The HTTP API (which has the
  * full session, permission and audit context) issues them; the WebSocket server consumes them.
  * Both run in the same Node process (server.ts), so an in-memory map on globalThis is shared.
+ * An RDP password typed by the user is held only here, in memory, for at most 30 seconds.
  */
-type Ticket = { userId: string; workspaceId: string; connectionId: string; ip: string | null; expires: number };
+type Ticket = { userId: string; workspaceId: string; connectionId: string; ip: string | null; expires: number; password?: string };
 const g = globalThis as unknown as { __epmTickets?: Map<string, Ticket> };
 const store = (g.__epmTickets ??= new Map());
 

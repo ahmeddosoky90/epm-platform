@@ -1,6 +1,6 @@
 import { requireCtx, pagePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { listConnections } from "@/lib/services/tech";
+import { listConnections, rdpEnabled } from "@/lib/services/tech";
 import { PageHeader, Card } from "@/components/ui/bits";
 import { TechPortal } from "@/components/tech/portal";
 import { dateTime } from "@/lib/format";
@@ -15,7 +15,7 @@ export default async function TechPage() {
   const users = await prisma.user.findMany({ where: { id: { in: [...new Set(sessions.map((s) => s.userId))] } }, select: { id: true, name: true } });
   return (<>
     <PageHeader title="Technical portal" subtitle="SSH terminal and SFTP in the browser, RDP through your own client. Restricted to authorised roles; every session is audited." />
-    <TechPortal connections={JSON.parse(JSON.stringify(connections))} canManage={can(ctx, "tech:manage")} />
+    <TechPortal connections={JSON.parse(JSON.stringify(connections))} canManage={can(ctx, "tech:manage")} rdpGateway={rdpEnabled()} />
     <Card title="Recent sessions" className="mt-6" pad={false}>
       {sessions.length ? <table className="table"><thead><tr><th>Started</th><th>Connection</th><th>User</th><th>Duration</th><th>Data</th><th>Outcome</th></tr></thead>
         <tbody>{sessions.map((s) => <tr key={s.id}><td className="text-xs">{dateTime(s.startedAt, ctx.workspace.timezone)}</td><td className="text-sm">{s.connection.name}</td><td className="text-xs">{users.find((u) => u.id === s.userId)?.name}</td>

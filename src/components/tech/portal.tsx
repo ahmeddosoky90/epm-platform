@@ -8,10 +8,12 @@ import { useToast } from "@/components/ui/toast";
 import { apiFetch } from "@/lib/client";
 
 const Terminal = dynamic(() => import("./terminal").then((m) => m.Terminal), { ssr: false });
+const RdpViewer = dynamic(() => import("./rdp").then((m) => m.RdpViewer), { ssr: false });
 type C = { id: string; name: string; protocol: string; host: string; port: number; username: string; authType: string; domain: string | null; notes: string | null; hasSecret: boolean; hostKeySha256: string | null; ignoreCert: boolean };
 const PORT: Record<string, number> = { SSH: 22, SFTP: 22, RDP: 3389 };
 
-export function TechPortal({ connections, canManage }: { connections: C[]; canManage: boolean }) {
+export function TechPortal({ connections, canManage, rdpGateway }: { connections: C[]; canManage: boolean; rdpGateway: boolean }) {
+  const [rdp, setRdp] = useState<{ id: string; password?: string } | null>(null); const [ask, setAsk] = useState<C | null>(null); const [pw, setPw] = useState("");
   const [edit, setEdit] = useState<Partial<C> & { secret?: string; resetHostKey?: boolean } | null>(null);
   const [term, setTerm] = useState<string | null>(null); const [files, setFiles] = useState<C | null>(null); const [del, setDel] = useState<C | null>(null);
   const toast = useToast(); const router = useRouter();
@@ -28,10 +30,19 @@ export function TechPortal({ connections, canManage }: { connections: C[]; canMa
           <div className="flex flex-wrap gap-2 mt-3">
             {c.protocol === "SSH" && <button className="btn-primary btn-sm" onClick={() => setTerm(c.id)}><TerminalSquare className="h-3.5 w-3.5" />Open terminal</button>}
             {(c.protocol === "SSH" || c.protocol === "SFTP") && <button className="btn-secondary btn-sm" onClick={() => setFiles(c)}><FolderOpen className="h-3.5 w-3.5" />Files</button>}
-            {c.protocol === "RDP" && <a className="btn-primary btn-sm" href={`/api/tech/connections/${c.id}/rdp`}><Monitor className="h-3.5 w-3.5" />Download .rdp</a>}
+            {c.protocol === "RDP" && rdpGateway && <button className="btn-primary btn-sm" onClick={() => (c.hasSecret ? setRdp({ id: c.id }) : (setPw(""), setAsk(c)))}><Monitor className="h-3.5 w-3.5" />Open in browser</button>}
+            {c.protocol === "RDP" && <a className={rdpGateway ? "btn-secondary btn-sm" : "btn-primary btn-sm"} href={`/api/tech/connections/${c.id}/rdp`}><Monitor className="h-3.5 w-3.5" />Download .rdp</a>}
             <button className="btn-secondary btn-sm" onClick={async () => { try { const r = await apiFetch<{ ok: boolean; detail: string }>(`/api/tech/connections/${c.id}/test`, { method: "POST" }); (r.ok ? toast.ok : (m: string) => toast.err(new Error(m)))(r.detail); router.refresh(); } catch (e) { toast.err(e); } }}><PlugZap className="h-3.5 w-3.5" />Test</button>
           </div>
         </div>))}</div>)}
+    {rdp && <RdpViewer connectionId={rdp.id} password={rdp.password} onClose={() => { setRdp(null); router.refresh(); }} />}
+    <Modal open={!!ask} onClose={() => setAsk(null)} title={`Sign in to ${ask?.name ?? ""}`}>
+      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); setRdp({ id: ask!.id, password: pw }); setAsk(null); }}>
+        <p className="text-sm muted">The password is used once for this session and is not stored.</p>
+        <div><label className="label">Password for {ask?.domain ? `${ask.domain}\\` : ""}{ask?.username}</label><input className="input" type="password" autoFocus autoComplete="off" value={pw} onChange={(e) => setPw(e.target.value)} /></div>
+        <div className="flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setAsk(null)}>Cancel</button><button className="btn-primary">Connect</button></div>
+      </form>
+    </Modal>
     {term && <Terminal connectionId={term} onClose={() => { setTerm(null); router.refresh(); }} />}
     {files && <SftpBrowser c={files} onClose={() => setFiles(null)} />}
     <Modal open={!!edit} onClose={() => setEdit(null)} title={edit?.id ? "Edit connection" : "Add connection"}>
@@ -47,9 +58,10 @@ export function TechPortal({ connections, canManage }: { connections: C[]; canMa
         <div><label className="label">Username *</label><input className="input" required autoComplete="off" value={edit.username ?? ""} onChange={(e) => setEdit({ ...edit, username: e.target.value })} /></div>
         {edit.protocol === "RDP" ? <div><label className="label">Domain</label><input className="input" value={edit.domain ?? ""} onChange={(e) => setEdit({ ...edit, domain: e.target.value })} /></div>
           : <div><label className="label">Authentication</label><select className="input" value={edit.authType} onChange={(e) => setEdit({ ...edit, authType: e.target.value })}><option value="PASSWORD">Password</option><option value="KEY">Private key</option></select></div>}
+        {edit.protocol === "RDP" && <div className="col-span-2"><label className="label">Password (optional){edit.id && edit.hasSecret ? " — leave empty to keep the stored one" : ""}</label><input className="input" type="password" autoComplete="new-password" value={edit.secret ?? ""} onChange={(e) => setEdit({ ...edit, secret: e.target.value })} /><p className="text-[11px] muted mt-0.5">Stored encrypted for in-browser sessions. Leave empty to be asked each time. The .rdp download never contains it.</p></div>}
+        {edit.protocol === "RDP" && <label className="col-span-2 text-sm flex items-center gap-2"><input type="checkbox" checked={!!edit.ignoreCert} onChange={(e) => setEdit({ ...edit, ignoreCert: e.target.checked })} />Accept the server&apos;s self-signed certificate</label>}
         {edit.protocol !== "RDP" && <div className="col-span-2"><label className="label">{edit.authType === "KEY" ? "Private key (OpenSSH/PEM)" : "Password"}{edit.id && edit.hasSecret ? " — leave empty to keep the stored one" : ""}</label>
           {edit.authType === "KEY" ? <textarea className="input font-mono text-xs" rows={4} autoComplete="off" value={edit.secret ?? ""} onChange={(e) => setEdit({ ...edit, secret: e.target.value })} /> : <input className="input" type="password" autoComplete="new-password" value={edit.secret ?? ""} onChange={(e) => setEdit({ ...edit, secret: e.target.value })} />}</div>}
-        {edit.protocol === "RDP" && <p className="col-span-2 text-xs muted">RDP opens in your own Remote Desktop client from a downloaded .rdp file; you type the password there, so none is stored here.</p>}
         <div className="col-span-2"><label className="label">Notes</label><input className="input" value={edit.notes ?? ""} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} /></div>
         {edit.id && edit.protocol !== "RDP" && edit.hostKeySha256 && <label className="col-span-2 text-sm flex items-center gap-2"><input type="checkbox" checked={!!edit.resetHostKey} onChange={(e) => setEdit({ ...edit, resetHostKey: e.target.checked })} />Forget the pinned host key (only if the server was legitimately rebuilt)</label>}
         <div className="col-span-2 flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setEdit(null)}>Cancel</button><button className="btn-primary">Save</button></div>
