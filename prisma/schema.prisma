@@ -1044,6 +1044,8 @@ model TechConnection {
   secretEnc   String?  // encrypted password or private key
   domain      String?
   notes       String?
+  hostKeySha256 String? // SSH/SFTP host key pinned on first successful connect (trust on first use)
+  ignoreCert  Boolean  @default(false) // RDP: accept self-signed server certificates
   createdById String
   createdAt   DateTime @default(now())
   sessions    TechSession[]
