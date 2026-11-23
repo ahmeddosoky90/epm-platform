@@ -1,0 +1,1076 @@
+// EPM Platform — relational data model
+// Conventions: UUID ids, workspace-scoped data (workspaceId on every tenant table),
+// Decimal(18,2) for money, soft delete via deletedAt where history must be preserved.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Identity & access ─────────────────────────
+
+model Workspace {
+  id             String   @id @default(uuid())
+  name           String
+  slug           String   @unique
+  description    String?
+  timezone       String   @default("Africa/Cairo")
+  locale         String   @default("en")
+  currency       String   @default("EGP")
+  fiscalYearStartMonth Int @default(1)
+  workingDays    Int[]    @default([0, 1, 2, 3, 4]) // 0=Sunday
+  hoursPerDay    Decimal  @default(8) @db.Decimal(5, 2)
+  brandColor     String   @default("#0a84ff")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  members        WorkspaceMember[]
+  departments    Department[]
+  teams          Team[]
+  holidays       Holiday[]
+  projects       Project[]
+  portfolios     Portfolio[]
+  programs       Program[]
+  objectives     StrategicObjective[]
+  issueTypes     IssueType[]
+  workflows      Workflow[]
+  lifecycleStages LifecycleStage[]
+  governanceStages GovernanceStageDef[]
+  templates      ProjectTemplate[]
+  resources      Resource[]
+  customFields   CustomField[]
+  savedFilters   SavedFilter[]
+  auditLogs      AuditLog[]
+  techConnections TechConnection[]
+  integrations   IntegrationAccount[]
+  priorityCriteria PriorityCriterion[]
+  exchangeRates  ExchangeRate[]
+  roles          Role[]
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  name           String
+  passwordHash   String
+  jobTitle       String?
+  avatarUrl      String?
+  locale         String    @default("en")
+  isActive       Boolean   @default(true)
+  isPlatformAdmin Boolean  @default(false)
+  failedLogins   Int       @default(0)
+  lockedUntil    DateTime?
+  mfaSecret      String?
+  mfaEnabled     Boolean   @default(false)
+  passwordChangedAt DateTime @default(now())
+  managerId      String?
+  manager        User?     @relation("ReportingLine", fields: [managerId], references: [id])
+  reports        User[]    @relation("ReportingLine")
+  departmentId   String?
+  department     Department? @relation(fields: [departmentId], references: [id])
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  sessions       Session[]
+  memberships    WorkspaceMember[]
+  projectMemberships ProjectMember[]
+  teamMemberships TeamMember[]
+  assignedIssues Issue[]   @relation("Assignee")
+  reportedIssues Issue[]   @relation("Reporter")
+  comments       IssueComment[]
+  workLogs       WorkLog[]
+  watching       IssueWatcher[]
+  notifications  Notification[]
+  approvals      Approval[] @relation("Approver")
+  resetTokens    PasswordResetToken[]
+}
+
+model Session {
+  id         String   @id // sha256 of the cookie token
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String?
+  ip         String?
+  userAgent  String?
+  mfaPending Boolean  @default(false)
+  expiresAt  DateTime
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String   @id // sha256 of token
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  workspaceId String?  // null = system role available in all workspaces
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+  key         String   // e.g. HEAD_OF_PMO
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  permissions String[] // permission keys, see src/lib/rbac/permissions.ts
+  createdAt   DateTime @default(now())
+
+  members     WorkspaceMember[]
+
+  @@unique([workspaceId, key])
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId      String
+  role        Role     @relation(fields: [roleId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@unique([workspaceId, userId])
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  costCenter  String?
+  users       User[]
+  resources   Resource[]
+
+  @@unique([workspaceId, name])
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  members     TeamMember[]
+
+  @@unique([workspaceId, name])
+}
+
+model TeamMember {
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+}
+
+model Holiday {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  date        DateTime @db.Date
+  name        String
+}
+
+// ───────────────────────── Strategy & portfolio ─────────────────────────
+
+model StrategicObjective {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  code        String
+  title       String
+  description String?
+  ownerId     String?
+  targetDate  DateTime?
+  projects    ProjectObjective[]
+
+  @@unique([workspaceId, code])
+}
+
+model Portfolio {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  ownerId     String?
+  createdAt   DateTime @default(now())
+  programs    Program[]
+  projects    Project[]
+  scenarios   Scenario[]
+
+  @@unique([workspaceId, name])
+}
+
+model Program {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  portfolioId String?
+  portfolio   Portfolio? @relation(fields: [portfolioId], references: [id])
+  name        String
+  description String?
+  managerId   String?
+  createdAt   DateTime @default(now())
+  projects    Project[]
+
+  @@unique([workspaceId, name])
+}
+
+model PriorityCriterion {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  weight      Decimal  @db.Decimal(5, 2) // percentage
+  sortOrder   Int      @default(0)
+  scores      ProjectScore[]
+}
+
+model ProjectScore {
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  criterionId String
+  criterion   PriorityCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  score       Int     // 0..10
+
+  @@id([projectId, criterionId])
+}
+
+model Scenario {
+  id          String   @id @default(uuid())
+  portfolioId String
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  createdById String
+  // JSON array of {projectId, included, budgetOverride, priorityOverride}
+  assumptions Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ───────────────────────── Projects ─────────────────────────
+
+model LifecycleStage {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  sortOrder   Int
+  requiresApproval Boolean @default(false)
+  projects    Project[]
+}
+
+model ProjectTemplate {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  methodology String   @default("HYBRID")
+  // { milestones: [{name, offsetDays}], tasks: [{summary, type}], documents: [string] }
+  definition  Json
+  createdAt   DateTime @default(now())
+}
+
+model Project {
+  id            String   @id @default(uuid())
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  key           String
+  name          String
+  description   String?
+  type          String   @default("Business")
+  category      String?
+  methodology   String   @default("HYBRID") // AGILE | WATERFALL | HYBRID
+  priority      String   @default("Medium")
+  status        String   @default("ACTIVE") // PROPOSED | ACTIVE | ON_HOLD | COMPLETED | CANCELLED
+  health        String   @default("GREEN")  // GREEN | AMBER | RED
+  classification String?
+  complexity    String?
+  businessUnit  String?
+  sponsor       String?
+  businessOwner String?
+  managerId     String?
+  ownerId       String?
+  portfolioId   String?
+  portfolio     Portfolio? @relation(fields: [portfolioId], references: [id])
+  programId     String?
+  program       Program?   @relation(fields: [programId], references: [id])
+  lifecycleStageId String?
+  lifecycleStage LifecycleStage? @relation(fields: [lifecycleStageId], references: [id])
+  workflowId    String?
+  workflow      Workflow?  @relation(fields: [workflowId], references: [id])
+  startDate     DateTime?
+  plannedEndDate DateTime?
+  actualStartDate DateTime?
+  actualEndDate DateTime?
+  currency      String   @default("EGP")
+  approvedBudget Decimal @default(0) @db.Decimal(18, 2)
+  capexBudget   Decimal  @default(0) @db.Decimal(18, 2)
+  opexBudget    Decimal  @default(0) @db.Decimal(18, 2)
+  progress      Int      @default(0)
+  tags          String[]
+  issueCounter  Int      @default(0) // monotonic; never decremented so keys are never reused
+  priorityOverride Int?
+  priorityOverrideReason String?
+  archivedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  members       ProjectMember[]
+  issues        Issue[]
+  sprints       Sprint[]
+  boards        Board[]
+  versions      Version[]
+  milestones    Milestone[]
+  tasks         PlanTask[]
+  baselines     Baseline[]
+  risks         Risk[]
+  raidItems     RaidItem[]
+  changeRequests ChangeRequest[]
+  budgetLines   BudgetLine[]
+  transactions  FinancialTransaction[]
+  allocations   ResourceAllocation[]
+  gates         ProjectGate[]
+  documents     Document[]
+  statusReports StatusReport[]
+  objectives    ProjectObjective[]
+  scores        ProjectScore[]
+  dependenciesFrom ProjectDependency[] @relation("DepFrom")
+  dependenciesTo   ProjectDependency[] @relation("DepTo")
+  requirements  Requirement[]
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId, status])
+}
+
+model ProjectObjective {
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  objectiveId String
+  objective   StrategicObjective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, objectiveId])
+}
+
+model ProjectMember {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectRole String @default("Member") // Manager | Member | Viewer
+
+  @@unique([projectId, userId])
+}
+
+model ProjectDependency {
+  id          String  @id @default(uuid())
+  fromId      String
+  from        Project @relation("DepFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId        String
+  to          Project @relation("DepTo", fields: [toId], references: [id], onDelete: Cascade)
+  description String?
+  status      String  @default("OPEN")
+  dueDate     DateTime?
+}
+
+model StatusReport {
+  id         String   @id @default(uuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId   String
+  health     String
+  summary    String
+  achievements String?
+  nextSteps  String?
+  createdAt  DateTime @default(now())
+}
+
+// ───────────────────────── Workflow engine ─────────────────────────
+
+model Workflow {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  version     Int      @default(1)
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  statuses    WorkflowStatus[]
+  transitions WorkflowTransition[]
+  projects    Project[]
+}
+
+model WorkflowStatus {
+  id         String   @id @default(uuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  name       String
+  category   String   // TODO | IN_PROGRESS | DONE
+  color      String   @default("#8e8e93")
+  sortOrder  Int
+  isInitial  Boolean  @default(false)
+  fromTransitions WorkflowTransition[] @relation("FromStatus")
+  toTransitions   WorkflowTransition[] @relation("ToStatus")
+  issues     Issue[]
+
+  @@unique([workflowId, name])
+}
+
+model WorkflowTransition {
+  id           String   @id @default(uuid())
+  workflowId   String
+  workflow     Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  name         String
+  fromStatusId String?  // null = from any status
+  fromStatus   WorkflowStatus? @relation("FromStatus", fields: [fromStatusId], references: [id], onDelete: Cascade)
+  toStatusId   String
+  toStatus     WorkflowStatus  @relation("ToStatus", fields: [toStatusId], references: [id], onDelete: Cascade)
+  allowedRoles String[] // role keys; empty = anyone with issue:transition
+  requiredFields String[] // issue fields that must be set, e.g. assigneeId, resolution
+  // conditions: { noOpenBlockers?: bool, assigneeOnly?: bool, requireApproval?: bool }
+  conditions   Json     @default("{}")
+  // postFunctions: { setResolution?: string, clearResolution?: bool, assignToReporter?: bool, notifyWatchers?: bool }
+  postFunctions Json    @default("{}")
+}
+
+// ───────────────────────── Issues ─────────────────────────
+
+model IssueType {
+  id          String  @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  icon        String  @default("square")
+  color       String  @default("#0a84ff")
+  level       Int     @default(1) // hierarchy level: 3=Epic, 2=Story/Task/Bug, 1=Subtask
+  isSystem    Boolean @default(false)
+  issues      Issue[]
+
+  @@unique([workspaceId, name])
+}
+
+model Issue {
+  id           String    @id @default(uuid())
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id])
+  number       Int
+  key          String    // immutable, e.g. MBM-101
+  summary      String
+  description  String?
+  typeId       String
+  type         IssueType @relation(fields: [typeId], references: [id])
+  statusId     String
+  status       WorkflowStatus @relation(fields: [statusId], references: [id])
+  priority     String    @default("Medium") // Blocker | Critical | High | Medium | Low
+  resolution   String?
+  severity     String?   // for bugs: S1..S4
+  isShowStopper Boolean  @default(false)
+  parentId     String?
+  parent       Issue?    @relation("IssueParent", fields: [parentId], references: [id])
+  children     Issue[]   @relation("IssueParent")
+  assigneeId   String?
+  assignee     User?     @relation("Assignee", fields: [assigneeId], references: [id])
+  reporterId   String
+  reporter     User      @relation("Reporter", fields: [reporterId], references: [id])
+  sprintId     String?
+  sprint       Sprint?   @relation(fields: [sprintId], references: [id])
+  fixVersionId String?
+  fixVersion   Version?  @relation(fields: [fixVersionId], references: [id])
+  storyPoints  Decimal?  @db.Decimal(6, 1)
+  originalEstimateMin Int?
+  remainingEstimateMin Int?
+  timeSpentMin Int       @default(0)
+  dueDate      DateTime?
+  startDate    DateTime?
+  labels       String[]
+  components   String[]
+  rank         Float     @default(0)
+  resolvedAt   DateTime?
+  customFields Json      @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  comments     IssueComment[]
+  history      IssueHistory[]
+  workLogs     WorkLog[]
+  watchers     IssueWatcher[]
+  attachments  Attachment[]
+  linksOut     IssueLink[] @relation("LinkSource")
+  linksIn      IssueLink[] @relation("LinkTarget")
+  sprintEvents SprintIssueEvent[]
+
+  @@unique([projectId, number])
+  @@unique([key])
+  @@index([projectId, statusId])
+  @@index([assigneeId])
+  @@index([sprintId])
+}
+
+model IssueLink {
+  id       String @id @default(uuid())
+  sourceId String
+  source   Issue  @relation("LinkSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  targetId String
+  target   Issue  @relation("LinkTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  type     String // BLOCKS | RELATES | DUPLICATES | DEPENDS_ON
+  createdAt DateTime @default(now())
+
+  @@unique([sourceId, targetId, type])
+}
+
+model IssueComment {
+  id        String   @id @default(uuid())
+  issueId   String
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+}
+
+model IssueHistory {
+  id        String   @id @default(uuid())
+  issueId   String
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  userId    String
+  field     String
+  fromValue String?
+  toValue   String?
+  createdAt DateTime @default(now())
+
+  @@index([issueId, createdAt])
+}
+
+model WorkLog {
+  id        String   @id @default(uuid())
+  issueId   String
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  minutes   Int
+  workDate  DateTime @db.Date
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model IssueWatcher {
+  issueId String
+  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([issueId, userId])
+}
+
+model Attachment {
+  id          String   @id @default(uuid())
+  issueId     String?
+  issue       Issue?   @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  storageKey  String
+  uploadedById String
+  createdAt   DateTime @default(now())
+}
+
+model CustomField {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  key         String
+  name        String
+  fieldType   String   // TEXT | NUMBER | DATE | DATETIME | SELECT | MULTISELECT | CHECKBOX | USER | URL | CURRENCY | PERCENT
+  options     String[]
+  issueTypeIds String[] // empty = all types
+  required    Boolean  @default(false)
+
+  @@unique([workspaceId, key])
+}
+
+// ───────────────────────── Agile ─────────────────────────
+
+model Board {
+  id         String   @id @default(uuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name       String
+  kind       String   // KANBAN | SCRUM
+  swimlane   String   @default("NONE") // NONE | ASSIGNEE | EPIC | PRIORITY
+  filterJql  String?
+  columns    BoardColumn[]
+  createdAt  DateTime @default(now())
+}
+
+model BoardColumn {
+  id        String   @id @default(uuid())
+  boardId   String
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int
+  wipLimit  Int?
+  statusIds String[] // mapped workflow statuses
+}
+
+model Sprint {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  goal        String?
+  state       String   @default("FUTURE") // FUTURE | ACTIVE | CLOSED | CANCELLED
+  startDate   DateTime?
+  endDate     DateTime?
+  completedAt DateTime?
+  capacityPoints Decimal? @db.Decimal(6, 1)
+  committedPoints Decimal? @db.Decimal(6, 1)
+  completedPoints Decimal? @db.Decimal(6, 1)
+  createdAt   DateTime @default(now())
+  issues      Issue[]
+  events      SprintIssueEvent[]
+}
+
+// Scope change log: used for burndown/burnup and sprint report
+model SprintIssueEvent {
+  id        String   @id @default(uuid())
+  sprintId  String
+  sprint    Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  issueId   String
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  kind      String   // ADDED | REMOVED | COMPLETED | REOPENED
+  points    Decimal? @db.Decimal(6, 1)
+  createdAt DateTime @default(now())
+}
+
+model Version {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  releaseDate DateTime?
+  released    Boolean  @default(false)
+  issues      Issue[]
+}
+
+// ───────────────────────── Planning ─────────────────────────
+
+model Milestone {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  dueDate     DateTime
+  baselineDate DateTime?
+  completedAt DateTime?
+  status      String   @default("PLANNED") // PLANNED | DONE | MISSED
+}
+
+model PlanTask {
+  id           String   @id @default(uuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parentId     String?
+  parent       PlanTask? @relation("TaskTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children     PlanTask[] @relation("TaskTree")
+  wbs          String?
+  outlineLevel Int      @default(1)
+  name         String
+  start        DateTime
+  finish       DateTime
+  durationDays Decimal  @default(0) @db.Decimal(8, 2)
+  percentComplete Int   @default(0)
+  isMilestone  Boolean  @default(false)
+  isSummary    Boolean  @default(false)
+  workHours    Decimal  @default(0) @db.Decimal(10, 2)
+  resourceNames String[]
+  sortOrder    Int      @default(0)
+  externalUid  String?  // UID from MS Project import
+  issueId      String?  // optional link to a delivery issue/epic
+  predecessors TaskDependency[] @relation("Succ")
+  successors   TaskDependency[] @relation("Pred")
+  baselineStart DateTime?
+  baselineFinish DateTime?
+}
+
+model TaskDependency {
+  id            String   @id @default(uuid())
+  predecessorId String
+  predecessor   PlanTask @relation("Pred", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successorId   String
+  successor     PlanTask @relation("Succ", fields: [successorId], references: [id], onDelete: Cascade)
+  type          String   @default("FS") // FS | SS | FF | SF
+  lagDays       Decimal  @default(0) @db.Decimal(8, 2)
+
+  @@unique([predecessorId, successorId])
+}
+
+model Baseline {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  snapshot  Json     // [{taskId, start, finish}]
+  createdById String
+  createdAt DateTime @default(now())
+}
+
+// ───────────────────────── Governance ─────────────────────────
+
+model GovernanceStageDef {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  sortOrder   Int
+  checklist   String[] // required items
+  approverRoles String[] // role keys, sequential order
+  validityDays Int?
+  gates       ProjectGate[]
+}
+
+model ProjectGate {
+  id         String   @id @default(uuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stageId    String
+  stage      GovernanceStageDef @relation(fields: [stageId], references: [id])
+  status     String   @default("NOT_STARTED") // NOT_STARTED | IN_REVIEW | APPROVED | REJECTED
+  checklistState Json @default("{}") // { item: true }
+  submittedAt DateTime?
+  decidedAt  DateTime?
+  expiresAt  DateTime?
+  approvals  Approval[]
+
+  @@unique([projectId, stageId])
+}
+
+model Approval {
+  id         String   @id @default(uuid())
+  gateId     String?
+  gate       ProjectGate? @relation(fields: [gateId], references: [id], onDelete: Cascade)
+  changeRequestId String?
+  changeRequest ChangeRequest? @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  step       Int
+  approverRole String
+  approverId String?
+  approver   User?    @relation("Approver", fields: [approverId], references: [id])
+  delegatedFromId String?
+  decision   String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  comment    String?
+  decidedAt  DateTime?
+  createdAt  DateTime @default(now())
+}
+
+model ChangeRequest {
+  id           String   @id @default(uuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  number       Int
+  title        String
+  description  String?
+  category     String   @default("Scope")
+  justification String?
+  scopeImpact  String?
+  scheduleImpactDays Int @default(0)
+  financialImpact Decimal @default(0) @db.Decimal(18, 2)
+  resourceImpact String?
+  riskImpact   String?
+  status       String   @default("SUBMITTED") // DRAFT | SUBMITTED | APPROVED | REJECTED | IMPLEMENTED | CLOSED
+  requesterId  String
+  decidedAt    DateTime?
+  createdAt    DateTime @default(now())
+  approvals    Approval[]
+}
+
+// ───────────────────────── RAID ─────────────────────────
+
+model Risk {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  number      Int
+  title       String
+  description String?
+  category    String   @default("Delivery")
+  ownerId     String?
+  probability Int      // 1..5
+  impact      Int      // 1..5
+  score       Int      // probability * impact
+  response    String   @default("MITIGATE") // AVOID | MITIGATE | TRANSFER | ACCEPT
+  mitigation  String?
+  targetDate  DateTime?
+  status      String   @default("OPEN") // OPEN | MITIGATING | CLOSED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RaidItem {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind        String   // ISSUE | ASSUMPTION | DEPENDENCY | ACTION
+  title       String
+  description String?
+  ownerId     String?
+  severity    String?  // Critical | High | Medium | Low
+  status      String   @default("OPEN")
+  dueDate     DateTime?
+  impact      String?
+  external    Boolean  @default(false)
+  escalated   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+// ───────────────────────── Finance ─────────────────────────
+
+model BudgetLine {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  category    String   // Labor | Hardware | Software | Services | Travel | Other
+  expenseType String   // CAPEX | OPEX
+  costCenter  String?
+  vendor      String?
+  fiscalYear  Int
+  proposed    Decimal  @default(0) @db.Decimal(18, 2)
+  approved    Decimal  @default(0) @db.Decimal(18, 2)
+  forecast    Decimal  @default(0) @db.Decimal(18, 2)
+  notes       String?
+  updatedAt   DateTime @updatedAt
+}
+
+model FinancialTransaction {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind        String   // ACTUAL | COMMITTED
+  expenseType String   // CAPEX | OPEX
+  category    String
+  amount      Decimal  @db.Decimal(18, 2)
+  currency    String
+  amountBase  Decimal  @db.Decimal(18, 2) // converted to workspace currency
+  vendor      String?
+  costCenter  String?
+  reference   String?
+  txDate      DateTime @db.Date
+  description String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([projectId, txDate])
+}
+
+model ExchangeRate {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  currency    String
+  rateToBase  Decimal  @db.Decimal(18, 6)
+  effectiveDate DateTime @db.Date
+
+  @@unique([workspaceId, currency, effectiveDate])
+}
+
+// ───────────────────────── Resources ─────────────────────────
+
+model Resource {
+  id           String   @id @default(uuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId       String?
+  name         String
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  jobTitle     String?
+  grade        String?
+  skills       String[]
+  employmentType String @default("Employee")
+  hourlyRate   Decimal  @default(0) @db.Decimal(12, 2)
+  dailyRate    Decimal  @default(0) @db.Decimal(12, 2)
+  hoursPerWeek Decimal  @default(40) @db.Decimal(5, 2)
+  managerName  String?
+  allocations  ResourceAllocation[]
+  leaves       ResourceLeave[]
+}
+
+model ResourceAllocation {
+  id          String   @id @default(uuid())
+  resourceId  String
+  resource    Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  percent     Int
+  startDate   DateTime @db.Date
+  endDate     DateTime @db.Date
+  plannedHours Decimal @default(0) @db.Decimal(10, 2)
+  actualHours Decimal  @default(0) @db.Decimal(10, 2)
+  role        String?
+}
+
+model ResourceLeave {
+  id         String   @id @default(uuid())
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  startDate  DateTime @db.Date
+  endDate    DateTime @db.Date
+  reason     String?
+}
+
+// ───────────────────────── Documents & requirements ─────────────────────────
+
+model Document {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  category    String   // Business Case | Project Charter | ...
+  status      String   @default("DRAFT") // DRAFT | IN_REVIEW | APPROVED
+  issueKey    String?
+  gateStageId String?
+  createdById String
+  createdAt   DateTime @default(now())
+  versions    DocumentVersion[]
+}
+
+model DocumentVersion {
+  id          String   @id @default(uuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version     Int
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  storageKey  String   // "local:..." | "s3:..." | "sftp:<connId>:<path>"
+  uploadedById String
+  createdAt   DateTime @default(now())
+
+  @@unique([documentId, version])
+}
+
+model Requirement {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code        String
+  title       String
+  description String?
+  objectiveCode String?
+  issueKeys   String[] // linked epics/stories
+  testRef     String?
+  status      String   @default("DRAFT")
+
+  @@unique([projectId, code])
+}
+
+// ───────────────────────── Platform ─────────────────────────
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  body      String?
+  link      String?
+  dedupeKey String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt])
+}
+
+model SavedFilter {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownerId     String
+  name        String
+  jql         String
+  shared      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+// Append-only. No update/delete API is exposed; DB trigger in migration blocks UPDATE/DELETE.
+model AuditLog {
+  id          String   @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+  userId      String?
+  eventType   String
+  entityType  String
+  entityId    String?
+  before      Json?
+  after       Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([entityType, entityId])
+}
+
+// Technical portal: SSH / RDP / SFTP endpoints. Secrets encrypted with APP_ENCRYPTION_KEY (AES-256-GCM).
+model TechConnection {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  protocol    String   // SSH | RDP | SFTP
+  host        String
+  port        Int
+  username    String
+  authType    String   @default("PASSWORD") // PASSWORD | KEY
+  secretEnc   String?  // encrypted password or private key
+  domain      String?
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  sessions    TechSession[]
+}
+
+model TechSession {
+  id           String   @id @default(uuid())
+  connectionId String
+  connection   TechConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  userId       String
+  startedAt    DateTime @default(now())
+  endedAt      DateTime?
+  ip           String?
+  bytesIn      Int      @default(0)
+  bytesOut     Int      @default(0)
+  outcome      String?
+}
+
+// Mail accounts (IMAP/SMTP) and other external integrations. Secrets encrypted.
+model IntegrationAccount {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownerId     String
+  kind        String   // IMAP | SMTP | S3 | GITHUB
+  name        String
+  config      Json     // non-secret config: host, port, secure, user, bucket, region...
+  secretEnc   String?
+  createdAt   DateTime @default(now())
+}
