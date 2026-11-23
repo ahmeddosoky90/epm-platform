@@ -5,12 +5,14 @@
  */
 import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 import { bootstrapWorkspace, createDefaultWorkflow } from "../src/lib/services/bootstrap";
 import { createDefaultBoards } from "../src/lib/services/bootstrap";
 import { riskScore } from "../src/lib/calc/risk";
 
 const prisma = new PrismaClient();
-const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "Demo@2026!pmo";
+// No default password is committed: set DEMO_PASSWORD, or a random one is generated and printed once.
+const DEMO_PASSWORD = process.env.DEMO_PASSWORD || `Demo-${randomBytes(9).toString("base64url")}`;
 const D = (v: number | string) => new Prisma.Decimal(v);
 let seed = 42;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
