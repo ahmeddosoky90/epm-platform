@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireCtx, can, requirePermission } from "@/lib/auth";
+import { requireCtx, can, pagePermission } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { portfolioSummary } from "@/lib/services/metrics";
 import { PageHeader, Stat, Card, Progress } from "@/components/ui/bits";
@@ -9,7 +9,7 @@ import { money } from "@/lib/format";
 
 export const metadata = { title: "Portfolios" };
 export default async function Portfolios() {
-  const ctx = await requireCtx(); requirePermission(ctx, "portfolio:view");
+  const ctx = await requireCtx(); pagePermission(ctx, "portfolio:view");
   const [s, portfolios] = await Promise.all([portfolioSummary(ctx), prisma.portfolio.findMany({ where: { workspaceId: ctx.workspaceId }, include: { programs: true } })]);
   const c = ctx.workspace.currency; const fin = can(ctx, "finance:view");
   return (<>

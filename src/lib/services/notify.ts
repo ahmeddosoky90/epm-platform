@@ -10,7 +10,12 @@ export interface NotifyInput { userIds: (string | null | undefined)[]; kind: str
  * an email copy is sent after the transaction (best effort, errors logged, never swallowed silently).
  */
 export async function notify(n: NotifyInput, tx: Tx = prisma) {
-  const ids = [...new Set(n.userIds.filter((x): x is string => !!x && x !== n.excludeUserId))];
+  let ids = [...new Set(n.userIds.filter((x): x is string => !!x && x !== n.excludeUserId))];
+  if (n.dedupeKey && ids.length) {
+    // Skip people who already got this notification so they are not emailed twice either
+    const seen = await tx.notification.findMany({ where: { userId: { in: ids }, dedupeKey: n.dedupeKey }, select: { userId: true } });
+    ids = ids.filter((id) => !seen.some((s) => s.userId === id));
+  }
   if (!ids.length) return;
   await tx.notification.createMany({
     data: ids.map((userId) => ({ userId, kind: n.kind, title: n.title, body: n.body, link: n.link, dedupeKey: n.dedupeKey ? `${n.dedupeKey}` : null })),

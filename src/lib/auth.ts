@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import "server-only";
 import bcrypt from "bcryptjs";
 import { cookies, headers } from "next/headers";
@@ -140,4 +141,9 @@ export async function login(email: string, password: string): Promise<{ mfaRequi
   await createSession(user.id, member?.workspaceId ?? null, user.mfaEnabled);
   await audit({ workspaceId: member?.workspaceId, userId: user.id, eventType: user.mfaEnabled ? "auth.password_ok_mfa_pending" : "auth.login", entityType: "User", entityId: user.id });
   return { mfaRequired: user.mfaEnabled };
+}
+
+/** For server-rendered pages: send the user to a friendly "no access" page (error messages are hidden in production). */
+export function pagePermission(ctx: Ctx, p: Permission) {
+  if (!can(ctx, p)) redirect(`/denied?need=${encodeURIComponent(p)}`);
 }

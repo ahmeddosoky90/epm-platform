@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { requireCtx, requirePermission, can } from "@/lib/auth";
+import { requireCtx, pagePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { projectScope } from "@/lib/services/access";
 import { PageHeader, Card } from "@/components/ui/bits";
 
 /** Report catalogue: every entry opens a live report or downloads an export built from current data. */
 export default async function Reports() {
-  const ctx = await requireCtx(); requirePermission(ctx, "report:view");
+  const ctx = await requireCtx(); pagePermission(ctx, "report:view");
   const projects = await prisma.project.findMany({ where: { AND: [projectScope(ctx), { archivedAt: null }] }, select: { key: true, name: true, methodology: true }, orderBy: { key: "asc" } });
   const exp = can(ctx, "report:export"); const fin = can(ctx, "finance:view");
   const Row = ({ title, desc, links }: { title: string; desc: string; links: { label: string; href: string; dl?: boolean }[] }) => (

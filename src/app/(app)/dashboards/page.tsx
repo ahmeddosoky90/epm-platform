@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireCtx, requirePermission, can } from "@/lib/auth";
+import { requireCtx, pagePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { portfolioSummary, issueStats, raidSummary, governanceCompliance } from "@/lib/services/metrics";
 import { PageHeader, Stat, Card, Health, Chip, Empty } from "@/components/ui/bits";
@@ -10,7 +10,7 @@ const VIEWS = { executive: "Executive", pmo: "PMO", pm: "Project manager" } as c
 type View = keyof typeof VIEWS;
 
 export default async function Dashboards({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  const ctx = await requireCtx(); requirePermission(ctx, "report:view");
+  const ctx = await requireCtx(); pagePermission(ctx, "report:view");
   const v = (await searchParams).view;
   const view: View = v === "pmo" || v === "pm" ? v : v === "executive" ? "executive" : ctx.roleKey === "PROJECT_MANAGER" ? "pm" : ctx.roleKey === "PMO_ADMIN" ? "pmo" : "executive";
   return (<>

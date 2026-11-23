@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireCtx, can, requirePermission } from "@/lib/auth";
+import { requireCtx, can, pagePermission } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { portfolioSummary, raidSummary } from "@/lib/services/metrics";
 import { weightedScore, rankProjects } from "@/lib/calc/prioritization";
@@ -12,7 +12,7 @@ import { Scenarios } from "@/components/portfolio/scenarios";
 import { money } from "@/lib/format";
 
 export default async function PortfolioDetail({ params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireCtx(); requirePermission(ctx, "portfolio:view");
+  const ctx = await requireCtx(); pagePermission(ctx, "portfolio:view");
   const pf = await prisma.portfolio.findFirst({ where: { id: (await params).id, workspaceId: ctx.workspaceId }, include: { programs: true } });
   if (!pf) notFound();
   const s = await portfolioSummary(ctx, { portfolioId: pf.id });

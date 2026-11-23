@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireCtx, can, requirePermission } from "@/lib/auth";
+import { requireCtx, can, pagePermission } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { portfolioSummary } from "@/lib/services/metrics";
 import { PageHeader, Card, Health, Progress } from "@/components/ui/bits";
@@ -7,7 +7,7 @@ import { CreateSimple } from "@/components/portfolio/create-simple";
 import { money } from "@/lib/format";
 export const metadata = { title: "Programs" };
 export default async function Programs() {
-  const ctx = await requireCtx(); requirePermission(ctx, "portfolio:view");
+  const ctx = await requireCtx(); pagePermission(ctx, "portfolio:view");
   const [programs, s] = await Promise.all([prisma.program.findMany({ where: { workspaceId: ctx.workspaceId }, include: { portfolio: true }, orderBy: { name: "asc" } }), portfolioSummary(ctx)]);
   return (<><PageHeader title="Programs" subtitle="Groups of related projects delivering a shared outcome" actions={can(ctx, "portfolio:manage") && <CreateSimple kind="program" />} />
     <div className="space-y-4">{programs.map((pg) => { const ps = s.projects.filter((p) => p.programId === pg.id); const prog = ps.length ? Math.round(ps.reduce((a, p) => a + p.progress, 0) / ps.length) : 0;

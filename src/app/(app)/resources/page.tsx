@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireCtx, requirePermission, can } from "@/lib/auth";
+import { requireCtx, pagePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { capacityGrid } from "@/lib/services/resources";
 import { projectScope } from "@/lib/services/access";
@@ -12,7 +12,7 @@ type SP = Record<string, string | undefined>;
 const heat = (u: number) => (u === 0 ? "transparent" : u > 100 ? "#ff3b30" : u >= 85 ? "#ff9f0a" : u >= 50 ? "#34c759" : "#34c75966");
 
 export default async function ResourcesPage({ searchParams }: { searchParams: Promise<SP> }) {
-  const ctx = await requireCtx(); requirePermission(ctx, "resource:view");
+  const ctx = await requireCtx(); pagePermission(ctx, "resource:view");
   const sp = await searchParams;
   const months = sp.months === "12" ? 12 : 6;
   const [grid, departments, members, projects, allSkills] = await Promise.all([

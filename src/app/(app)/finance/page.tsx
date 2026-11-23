@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireCtx, requirePermission, can } from "@/lib/auth";
+import { requireCtx, pagePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { portfolioSummary } from "@/lib/services/metrics";
 import { PageHeader, Stat, Card, Health, Empty } from "@/components/ui/bits";
@@ -11,7 +11,7 @@ type SP = Record<string, string | undefined>;
 
 /** Workspace financial dashboard: investment, FY comparison, cost centres, variance league table. */
 export default async function FinancePage({ searchParams }: { searchParams: Promise<SP> }) {
-  const ctx = await requireCtx(); requirePermission(ctx, "finance:view");
+  const ctx = await requireCtx(); pagePermission(ctx, "finance:view");
   const sp = await searchParams;
   const s = await portfolioSummary(ctx, sp.portfolio ? { portfolioId: sp.portfolio } : {});
   const ids = s.projects.map((p) => p.id);
