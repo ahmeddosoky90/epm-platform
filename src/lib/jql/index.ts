@@ -233,7 +233,7 @@ export function compile(node: Node | null, env: CompileEnv): Prisma.IssueWhereIn
 
 const ORDER_FIELDS: Record<string, string> = {
   created: "createdAt", updated: "updatedAt", duedate: "dueDate", priority: "priority", key: "number", rank: "rank",
-  storypoints: "storyPoints", summary: "summary", resolved: "resolvedAt",
+  storypoints: "storyPoints", summary: "summary", resolved: "resolvedAt", severity: "severity", type: "typeId",
 };
 export function compileOrder(order: Parsed["orderBy"]): Prisma.IssueOrderByWithRelationInput[] {
   if (!order.length) return [{ updatedAt: "desc" }];
