@@ -31,7 +31,7 @@ let bugType: string; let retailProjectKey: string; const created: string[] = [];
 beforeAll(async () => {
   [head, pm, otherPm, member, exec, retail, admin] = await Promise.all(["layla.hassan@epm.local", "sarah.ahmed@epm.local", "omar.khaled@epm.local", "ziad.fathy@epm.local", "tarek.samir@epm.local", "retail.pm@epm.local", "admin@epm.local"].map(ctxFor));
   bugType = (await prisma.issueType.findFirstOrThrow({ where: { workspaceId: head.workspaceId, name: "Bug" } })).id;
-  const rp = await createProject(retail, { name: "Isolation Test Store", key: "ISOT", methodology: "HYBRID", priority: "Medium" });
+  const rp = await createProject(retail, { name: "Isolation Test Store", key: "ISOT", methodology: "HYBRID", priority: "Medium", startDate: null, plannedEndDate: null });
   retailProjectKey = rp.key;
 });
 afterAll(async () => {

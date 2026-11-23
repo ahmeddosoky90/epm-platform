@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { t, langFrom } from "@/lib/i18n";
 import { getCtx, can } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Shell, type NavItem } from "@/components/shell/shell";
@@ -31,9 +33,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...(P("tech:access") ? [{ href: "/tech", label: "Technical portal", icon: "terminal" } as NavItem] : []),
     ...(P("admin:users") || P("admin:workflows") || P("admin:workspace") || P("audit:view") ? [{ href: "/admin", label: "Administration", icon: "settings" } as NavItem] : []),
   ];
+  const lang = langFrom((await cookies()).get("epm_lang")?.value);
+  const localNav = nav.map((n) => ({ ...n, label: t(lang, n.label), section: n.section && t(lang, n.section) }));
   return (
     <ToastProvider>
-      <Shell nav={nav} user={{ name: ctx.user.name, email: ctx.user.email, role: ctx.roleName }} workspace={ctx.workspace} workspaces={workspaces.map((w) => w.workspace)} unread={unread} canCreate={P("issue:create")}>
+      <Shell lang={lang} nav={localNav} user={{ name: ctx.user.name, email: ctx.user.email, role: ctx.roleName }} workspace={ctx.workspace} workspaces={workspaces.map((w) => w.workspace)} unread={unread} canCreate={P("issue:create")}>
         {children}
       </Shell>
     </ToastProvider>

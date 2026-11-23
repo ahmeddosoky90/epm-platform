@@ -11,12 +11,13 @@ import { Logo } from "./logo";
 import { Avatar } from "@/components/ui/bits";
 import { apiFetch } from "@/lib/client";
 import { CreateIssueModal } from "@/components/issues/create-issue";
+import { t as tr, type Lang } from "@/lib/i18n";
 
 const ICONS = { home: Home, inbox: Inbox, folder: Folder, layers: Layers, "git-branch": GitBranch, map: Map, kanban: Kanban, list: List, timer: Timer, search: Search, gauge: Gauge, "bar-chart": BarChart3, users: Users, wallet: Wallet, shield: Shield, mail: Mail, terminal: Terminal, settings: Settings };
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS; section?: string };
 
-export function Shell({ nav, user, workspace, workspaces, unread, canCreate, children }: {
-  nav: NavItem[]; user: { name: string; email: string; role: string }; workspace: { id: string; name: string }; workspaces: { id: string; name: string }[]; unread: number; canCreate: boolean; children: ReactNode;
+export function Shell({ lang, nav, user, workspace, workspaces, unread, canCreate, children }: {
+  lang: Lang; nav: NavItem[]; user: { name: string; email: string; role: string }; workspace: { id: string; name: string }; workspaces: { id: string; name: string }[]; unread: number; canCreate: boolean; children: ReactNode;
 }) {
   const path = usePathname(); const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -35,7 +36,7 @@ export function Shell({ nav, user, workspace, workspaces, unread, canCreate, chi
   }, [canCreate]);
   const toggle = () => { setCollapsed((c) => { try { localStorage.setItem("epm_nav", c ? "0" : "1"); } catch {} return !c; }); };
   const active = (h: string) => (h === "/" ? path === "/" : path.startsWith(h));
-  const lang = typeof document !== "undefined" ? document.documentElement.lang : "en";
+  const t = (x: string) => tr(lang, x);
 
   return (
     <div className="flex min-h-screen">
@@ -58,7 +59,7 @@ export function Shell({ nav, user, workspace, workspaces, unread, canCreate, chi
           })}
         </nav>
         <button onClick={toggle} className="m-2 flex items-center gap-3 rounded-lg px-3 h-8 text-sm text-ink-3 hover:bg-black/5" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-          {collapsed ? <PanelLeft className="h-4 w-4" /> : <><PanelLeftClose className="h-4 w-4" /><span>Collapse</span></>}
+          {collapsed ? <PanelLeft className="h-4 w-4" /> : <><PanelLeftClose className="h-4 w-4" /><span>{t("Collapse")}</span></>}
         </button>
       </aside>
       <div className="flex-1 min-w-0">
@@ -73,11 +74,11 @@ export function Shell({ nav, user, workspace, workspaces, unread, canCreate, chi
             <label className="relative block">
               <span className="sr-only">Search</span>
               <Search className="h-4 w-4 muted absolute start-3 top-1/2 -translate-y-1/2" />
-              <input id="global-search" className="input !rounded-full ps-9 bg-black/[0.04] border-transparent" placeholder="Search issues, projects, people…  ( / )" value={q} onChange={(e) => setQ(e.target.value)} />
+              <input id="global-search" className="input !rounded-full ps-9 bg-black/[0.04] border-transparent" placeholder={t("Search issues, projects, people…  ( / )")} value={q} onChange={(e) => setQ(e.target.value)} />
             </label>
           </form>
           <div className="flex-1" />
-          {canCreate && <button className="btn-primary btn-sm" onClick={() => setCreate(true)}><Plus className="h-4 w-4" />Create</button>}
+          {canCreate && <button className="btn-primary btn-sm" onClick={() => setCreate(true)}><Plus className="h-4 w-4" />{t("Create")}</button>}
           <Link href="/notifications" className="relative btn-secondary btn-sm !px-2" aria-label={`Notifications (${unread} unread)`}>
             <Bell className="h-4 w-4" />{unread > 0 && <span className="absolute -top-1 -end-1 bg-[#ff3b30] text-white text-[10px] rounded-full min-w-4 h-4 px-1 flex items-center justify-center">{unread > 99 ? "99+" : unread}</span>}
           </Link>
@@ -86,9 +87,9 @@ export function Shell({ nav, user, workspace, workspaces, unread, canCreate, chi
             <button onClick={() => setMenu(menu === "user" ? null : "user")} aria-haspopup="menu" aria-label="Account"><Avatar name={user.name} size={30} /></button>
             {menu === "user" && <div className="absolute end-0 mt-2 card shadow-pop py-1 min-w-[240px]" role="menu">
               <div className="px-3 py-2 border-b border-line"><div className="text-sm font-medium">{user.name}</div><div className="text-xs muted">{user.email}</div><div className="text-xs text-accent mt-0.5">{user.role}</div></div>
-              <Link href="/profile" className="block px-3 py-2 text-sm hover:bg-black/5" onClick={() => setMenu(null)}>Profile & security</Link>
+              <Link href="/profile" className="block px-3 py-2 text-sm hover:bg-black/5" onClick={() => setMenu(null)}>{t("Profile & security")}</Link>
               <button className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-black/5" onClick={() => { document.cookie = `epm_lang=${lang === "ar" ? "en" : "ar"};path=/;max-age=31536000`; location.reload(); }}><Languages className="h-4 w-4" />{lang === "ar" ? "English" : "العربية"}</button>
-              <button className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-black/5 text-[#ff3b30]" onClick={async () => { await apiFetch("/api/auth/logout", { method: "POST" }); router.push("/login"); router.refresh(); }}><LogOut className="h-4 w-4" />Sign out</button>
+              <button className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-black/5 text-[#ff3b30]" onClick={async () => { await apiFetch("/api/auth/logout", { method: "POST" }); router.push("/login"); router.refresh(); }}><LogOut className="h-4 w-4" />{t("Sign out")}</button>
             </div>}
           </div>
         </header>
