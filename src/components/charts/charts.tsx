@@ -36,9 +36,9 @@ export function Donut({ data, height = 200, colors }: { data: { name: string; va
         <ResponsiveContainer><PieChart><Pie data={data} dataKey="value" nameKey="name" innerRadius="62%" outerRadius="100%" paddingAngle={2} stroke="none">
           {data.map((d, i) => <Cell key={i} fill={d.color ?? colors?.[i] ?? PALETTE[i % PALETTE.length]} />)}
         </Pie><Tooltip {...tip} /></PieChart></ResponsiveContainer>
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><span className="text-2xl font-semibold">{total}</span><span className="text-[11px] muted">total</span></div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><span className="text-2xl font-semibold">{compact(total)}</span><span className="text-[11px] muted">total</span></div>
       </div>
-      <ul className="text-xs space-y-1.5 min-w-0">{data.filter((d) => d.value > 0).map((d, i) => <li key={d.name} className="flex items-center gap-2"><span className="h-2 w-2 rounded-full shrink-0" style={{ background: d.color ?? colors?.[i] ?? PALETTE[i % PALETTE.length] }} /><span className="truncate">{d.name}</span><span className="muted ms-auto ps-2">{d.value}</span></li>)}</ul>
+      <ul className="text-xs space-y-1.5 min-w-0 flex-1">{data.map((d, i) => d.value > 0 && <li key={d.name} className="flex items-center gap-2"><span className="h-2 w-2 rounded-full shrink-0" style={{ background: d.color ?? colors?.[i] ?? PALETTE[i % PALETTE.length] }} /><span className="truncate">{d.name}</span><span className="muted ms-auto ps-2">{compact(d.value)}</span></li>)}</ul>
     </div>
   );
 }
