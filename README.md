@@ -52,6 +52,10 @@ The seed creates an "Enterprise Banking Group" workspace. It includes the **Mobi
 
 ## Production
 
+**Free hosted setup:** Render + Supabase + Brevo, deployed and operated from GitHub Actions. See [docs/DEPLOY.md](docs/DEPLOY.md).
+
+Self-hosted:
+
 ```bash
 docker compose up -d --build       # app + Postgres + guacd; reads .env
 ```
@@ -90,6 +94,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for deployment topology and sca
 - [docs/API.md](docs/API.md): REST endpoints
 - [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md): phases, what is done, known limitations and next steps
 - [docs/TESTING.md](docs/TESTING.md): how to test and what has been verified
+- [docs/DEPLOY.md](docs/DEPLOY.md): free hosting on Render, Supabase and Brevo, and the GitHub Actions that run it
 
 ## Known limitations
 

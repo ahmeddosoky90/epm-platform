@@ -3,7 +3,7 @@ import { requireCtx, can } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { mailStatus } from "@/lib/services/mail";
 import { projectScope } from "@/lib/services/access";
-import { mailConfigured } from "@/lib/integrations/mail";
+import { mailConfigured, mailProvider } from "@/lib/integrations/mail";
 import { PageHeader, Card, Chip } from "@/components/ui/bits";
 import { Mailbox, SmtpTest } from "@/components/integrations/mailbox";
 
@@ -24,7 +24,7 @@ export default async function IntegrationsPage() {
     <div className="grid lg:grid-cols-3 gap-4 mt-6">
       <Card title="Outgoing mail (notifications)">
         <div className="text-sm flex items-center gap-2">{mailConfigured() ? <Chip color="#34c759">Configured</Chip> : <Chip color="#8e8e93">Not configured</Chip>}</div>
-        <p className="text-xs muted mt-2">{mailConfigured() ? "Assignment, mention, approval and reminder emails go through the SMTP relay set on the server." : "Notifications are shown in the app only. A server administrator sets SMTP_HOST and related variables to enable email."}</p>
+        <p className="text-xs muted mt-2">{mailConfigured() ? `Assignment, mention, approval and reminder emails are sent through ${mailProvider() === "brevo" ? "the Brevo email API" : "the SMTP relay"} set on the server.` : "Notifications are shown in the app only. A server administrator sets BREVO_API_KEY or SMTP_HOST to enable email."}</p>
         {admin && mailConfigured() && <SmtpTest email={ctx.user.email} />}
       </Card>
       <Card title="Document storage">
