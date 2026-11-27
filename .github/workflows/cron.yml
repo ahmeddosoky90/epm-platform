@@ -1,0 +1,37 @@
+name: Scheduled jobs
+# Every 10 minutes: health ping, which keeps the free Render service awake and the Supabase project active.
+# Hourly (minute 7): due-date and approval reminders (POST /api/jobs/reminders).
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+    - cron: "7 * * * *"
+  workflow_dispatch:
+    inputs:
+      reminders: { description: "Run the reminders job now", type: boolean, default: true }
+concurrency: { group: cron, cancel-in-progress: false }
+permissions: { contents: read }
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { sparse-checkout: scripts, sparse-checkout-cone-mode: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Read app URL and cron secret from Render
+        run: node scripts/render.mjs export-env --optional APP_URL CRON_SECRET
+      - name: Health ping
+        if: env.RENDER_NOT_READY != 'true'
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 100 "$APP_URL/api/health") && [ "$code" = 200 ] && { echo "healthy"; exit 0; }
+            echo "attempt $i: $code"; sleep 15
+          done
+          echo "::error::Health check failed"; exit 1
+      - name: Hourly reminders
+        if: env.RENDER_NOT_READY != 'true' && ((github.event_name == 'workflow_dispatch' && inputs.reminders) || github.event.schedule == '7 * * * *')
+        run: |
+          curl -sS --fail-with-body --max-time 100 -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/reminders"

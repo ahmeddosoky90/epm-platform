@@ -43,7 +43,7 @@ export function UsersAdmin({ members, roles, departments, me }: { members: M[]; 
         <div><label className="label">Role *</label><select className="input" required value={f.roleId ?? ""} onChange={(e) => setF({ ...f, roleId: e.target.value })}><option value="">Choose…</option>{roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></div>
         <div><label className="label">Department</label><select className="input" value={f.departmentId ?? ""} onChange={(e) => setF({ ...f, departmentId: e.target.value })}><option value="">—</option>{departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
         <div className="col-span-2"><label className="label">Job title</label><input className="input" value={f.jobTitle ?? ""} onChange={(e) => setF({ ...f, jobTitle: e.target.value })} /></div>
-        <p className="col-span-2 text-xs muted">The person sets their own password from a one-time link. It is emailed when SMTP is configured; otherwise you will see the link to pass on securely.</p>
+        <p className="col-span-2 text-xs muted">The person sets their own password from a one-time link. It is emailed when outgoing email is configured; otherwise you will see the link to pass on securely.</p>
         <div className="col-span-2 flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setOpen(false)}>Cancel</button><button className="btn-primary">Add user</button></div>
       </form>
     </Modal>

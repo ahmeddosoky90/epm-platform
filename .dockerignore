@@ -2,6 +2,9 @@ node_modules
 .next
 .env
 .env.local
-storage
+/storage
 *.tsbuildinfo
 .git
+.github
+coverage
+test-results

@@ -1,0 +1,38 @@
+name: Nightly backup
+# pg_dump of Supabase, encrypted with BACKUP_PASSPHRASE (generated on first deploy; see it in Render →
+# lumen-pmo → Environment), kept 30 days as a workflow artifact. Restore:
+#   gpg --batch --passphrase "$BACKUP_PASSPHRASE" -d epm-*.dump.gpg > epm.dump && pg_restore --clean --no-owner -d "$DATABASE_URL" epm.dump
+on:
+  schedule:
+    - cron: "40 1 * * *"
+  workflow_dispatch:
+concurrency: { group: backup, cancel-in-progress: false }
+permissions: { contents: read }
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { sparse-checkout: scripts, sparse-checkout-cone-mode: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Read backup passphrase from Render
+        run: node scripts/render.mjs export-env --optional BACKUP_PASSPHRASE
+      - name: Dump and encrypt
+        if: env.RENDER_NOT_READY != 'true'
+        run: |
+          set -euo pipefail
+          pw=$(node -e 'console.log(decodeURIComponent(new URL(process.env.SUPABASE_DB_URL).password))'); echo "::add-mask::$pw"
+          file="epm-$(date -u +%Y%m%d-%H%M).dump"
+          docker run --rm -e DB_URL="$SUPABASE_DB_URL" -v "$PWD:/out" postgres:17 \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges --schema=public --file="/out/'"$file"'" "$DB_URL"'
+          gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_PASSPHRASE" -o "$file.gpg" "$file"
+          rm -f "$file"; ls -l "$file.gpg"
+          echo "BACKUP_FILE=$file.gpg" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        if: env.RENDER_NOT_READY != 'true'
+        with: { name: db-backup, path: "${{ env.BACKUP_FILE }}", retention-days: 30, if-no-files-found: error }

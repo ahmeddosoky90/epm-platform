@@ -1,0 +1,58 @@
+name: Ops
+# Manual operations. Output is public (public repo), so logs are redacted and secrets are never printed.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        options: [status, logs, restart, rollback, migrate, sync-settings, send-admin-link]
+        default: status
+      lines:
+        description: Log lines (for logs)
+        default: "200"
+concurrency: { group: ops, cancel-in-progress: false }
+permissions: { contents: read }
+env:
+  RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+  SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+  STORAGE_S3_ACCESS_KEY: ${{ secrets.STORAGE_S3_ACCESS_KEY }}
+  STORAGE_S3_SECRET_KEY: ${{ secrets.STORAGE_S3_SECRET_KEY }}
+  BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+  MAIL_FROM: ${{ secrets.MAIL_FROM }}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: Install (database actions only)
+        if: contains(fromJSON('["migrate","send-admin-link"]'), inputs.action)
+        run: npm ci --no-audit --no-fund && npx prisma generate
+      - name: status
+        if: inputs.action == 'status'
+        run: node scripts/render.mjs status
+      - name: logs
+        if: inputs.action == 'logs'
+        run: node scripts/render.mjs logs "${{ inputs.lines }}"
+      - name: restart
+        if: inputs.action == 'restart'
+        run: node scripts/render.mjs restart
+      - name: rollback
+        if: inputs.action == 'rollback'
+        run: node scripts/render.mjs rollback
+      - name: migrate
+        if: inputs.action == 'migrate'
+        run: DATABASE_URL="$SUPABASE_DB_URL" npx prisma migrate deploy
+      - name: sync-settings
+        if: inputs.action == 'sync-settings'
+        run: node scripts/render.mjs sync && node scripts/render.mjs restart
+      - name: send-admin-link
+        if: inputs.action == 'send-admin-link'
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+        run: |
+          node scripts/render.mjs export-env APP_URL
+          DATABASE_URL="$SUPABASE_DB_URL" npx tsx prisma/create-admin.ts
